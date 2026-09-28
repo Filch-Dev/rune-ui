@@ -2,8 +2,8 @@
 // Lua or UE4SS global. A call to a function that no longer exists shows as an unknown global.
 // Needs luaparse: npm install --no-save luaparse. Run: node tools/check-lua.js (all of RuneUI/Scripts), or name files.
 const lp = require('luaparse'), fs = require('fs'), path = require('path');
-const known = new Set(('print io os string table math pairs ipairs pcall require dofile tostring tonumber type next error select setmetatable getmetatable rawget rawset unpack _G ' +
-  'FName FText FindAllOf FindFirstOf StaticFindObject StaticConstructObject LoadAsset RegisterHook RegisterKeyBind ExecuteWithDelay ExecuteInGameThread NotifyOnNewObject LoopAsync UEHelpers').split(' '));
+const known = new Set(('print io os string table math collectgarbage pairs ipairs pcall require dofile tostring tonumber type next error select setmetatable getmetatable rawget rawset unpack _G ' +
+  'FName FText FindAllOf FindFirstOf StaticFindObject StaticConstructObject LoadAsset RegisterHook RegisterKeyBind ExecuteWithDelay ExecuteInGameThread NotifyOnNewObject LoopAsync UEHelpers LoopInGameThreadWithDelay ExecuteInGameThreadWithDelay IsInGameThread').split(' '));
 let files = process.argv.slice(2);
 if (!files.length) {
   const dir = path.join(__dirname, '..', 'RuneUI', 'Scripts');
@@ -21,7 +21,17 @@ for (const f of files) {
     if (n.type === 'Identifier' && n.isLocal === false && !known.has(n.name)) free.add(n.name + ':' + n.loc.start.line);
     for (const k in n) if (k !== 'loc' && k !== 'range') walk(n[k]);
   })(ast);
-  console.log(path.basename(f), 'syntax ok; unknown globals:', [...free].join(' ') || 'none');
-  if (free.size) bad++;
+  // A top-level local declared twice hides the first one from all code below it: a timer function named Step
+  // broke the editor's move step (28-09-2026).
+  const seen = new Map(), twice = [];
+  for (const s of ast.body) {
+    const names = s.type === 'LocalStatement' ? s.variables : s.type === 'FunctionDeclaration' && s.isLocal ? [s.identifier] : [];
+    for (const v of names) {
+      if (seen.has(v.name)) twice.push(v.name + ':' + seen.get(v.name) + '+' + v.loc.start.line);
+      seen.set(v.name, v.loc.start.line);
+    }
+  }
+  console.log(path.basename(f), 'syntax ok; unknown globals:', [...free].join(' ') || 'none', '; declared twice:', twice.join(' ') || 'none');
+  if (free.size || twice.length) bad++;
 }
 process.exit(bad ? 1 : 0);

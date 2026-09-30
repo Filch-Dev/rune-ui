@@ -148,6 +148,21 @@ writePng(path.join(OUT, 'upkeep_centre.png'), US, (x, y) => {
   return out(p);
 });
 
+// ---- the key box under the menu buttons (design sketch A, 29-09-2026): a dark box with a thin gold edge and
+// round corners. The mod draws it in nine pieces around the key's letter. The game draws a Border's picture at the
+// picture's own size, not at the brush's ImageSize (in game 30-09-2026: a 4 px line showed about 3 px thick, "way
+// too thick"), so the line is drawn at the width it shows: 1.5 px of 32. No rounded-box brush: its outline ignores
+// the fading (LEARNINGS, 28-09-2026).
+writePng(path.join(OUT, 'keycap.png'), 32, (x, y) => {
+  const half = 16, r = 10, line = 1.5;                   // corner radius 10 px, as before
+  const qx = Math.max(Math.abs(x - half) - (half - r), 0), qy = Math.max(Math.abs(y - half) - (half - r), 0);
+  const d = Math.hypot(qx, qy) - r;                      // distance to the box's edge, negative inside
+  const shape = 1 - smooth(-0.6, 0.6, d);
+  const edge = smooth(-line - 0.6, -line + 0.6, d);      // the outer line is gold
+  const col = mix(hex('#16120d'), hex('#8a7348'), edge);
+  return [...col.map(v => Math.round(v)), Math.round(255 * shape * (0.82 + 0.18 * edge))];
+});
+
 // ---- the clock hand on the ring (design sketch): a gold needle that points at the map's centre,
 // with a diamond cap on its outer end. 32 x 96 px for a 10 x 30 unit marker; it points down, the mod turns it.
 {
@@ -169,6 +184,23 @@ writePng(path.join(OUT, 'upkeep_centre.png'), US, (x, y) => {
   }, H);
 }
 
+// ---- the north mark on the inner gold ring (design sketch 28-09-2026, shape A): a dark disc with a gold rim
+// and a cream N. 64 px for a 17 unit mark; the N is drawn from three strokes, so no font is needed.
+writePng(path.join(OUT, 'runemap_north.png'), S, (x, y) => {
+  const r = Math.hypot(x - h, y - h);
+  const seg = (ax, ay, bx, by) => {   // distance to a stroke from a to b
+    const vx = bx - ax, vy = by - ay, t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy), 0, 1);
+    return Math.hypot(x - ax - t * vx, y - ay - t * vy);
+  };
+  const n = Math.min(seg(22, 19, 22, 45), seg(42, 19, 42, 45), seg(22, 19, 42, 45));
+  const gold = mix(hex('#f6d98c'), hex('#a8823f'), clamp((y - 2) / 60, 0, 1));   // light from the top
+  let p = [...hex('#2a1c12'), 1 - smooth(30.2, 31.4, r)];
+  p = over(p, [...gold, 1 - smooth(28.6, 29.8, r)]);
+  p = over(p, [...hex('#150f09'), 1 - smooth(24.6, 25.8, r)]);
+  p = over(p, [...hex('#f3e6c4'), 1 - smooth(2.6, 3.8, n)]);
+  return out(p);
+});
+
 // ---- creatures on the map: a small diamond, red for enemies and green for neutral animals, dark outline
 function creature(file, light, deep) {
   writePng(path.join(OUT, file), S, (x, y) => {
@@ -182,6 +214,26 @@ function creature(file, light, deep) {
 }
 creature('creature_enemy.png', '#ff7a66', '#b8281e');
 creature('creature_neutral.png', '#a6e07a', '#3f8f2e');
+
+// ---- resources on the map (Ivan, 29-09-2026): a shape for each group, since the creatures are the diamonds. Ore
+// a brown square, herbs a green triangle, rune essence a blue circle, rare trees a gold triangle pointing down.
+// dist gives the distance from the middle in the shape's own measure; the outline and the body are two sizes of it.
+function resource(file, light, deep, dist, outR, bodyR) {
+  writePng(path.join(OUT, file), S, (x, y) => {
+    const d = dist(x - h, y - h);
+    const edge = (v, r) => 1 - smooth(r - 0.8, r + 0.8, v);
+    const outline = edge(d, outR), body = edge(d, bodyR);
+    const col = mix(hex(light), hex(deep), clamp((y - h + 25) / 50, 0, 1));   // light from the top
+    const c = body > 0 ? mix(hex('#1a0f0a'), col, body) : hex('#1a0f0a');
+    return [...c.map(v => Math.round(v)), Math.round(255 * outline)];
+  });
+}
+// a triangle as the distance to its three sides (its inner circle is the measure); up = 1 points up, -1 down
+const triangle = up => (dx, dy) => { const v = up * (dy - 6 * up); return Math.max(v, -0.5 * v + 0.866 * dx, -0.5 * v - 0.866 * dx); };
+resource('resource_ore.png', '#c99a66', '#6b4423', (dx, dy) => Math.max(Math.abs(dx), Math.abs(dy)), 22, 17);
+resource('resource_herb.png', '#9be07a', '#2f7d2a', triangle(1), 16, 11.5);
+resource('resource_essence.png', '#9ccfff', '#2a5fb8', (dx, dy) => Math.hypot(dx, dy), 25, 20);
+resource('resource_tree.png', '#f0d078', '#8a6420', triangle(-1), 16, 11.5);
 
 // ---- the bars' track (design sketch, without its ornaments: in-game review 27-09-2026). The mod draws this
 // picture in nine pieces over each bar's frame, one pixel to one unit: the outer pieces keep their size and
@@ -199,15 +251,6 @@ creature('creature_neutral.png', '#a6e07a', '#3f8f2e');
     }, H);
   }
 }
-
-// ---- one dash of a buff's ring: white, so the mod tints it with the buff's colour. The dash is 2 x 5 units
-// with round ends, drawn at 4 px a unit with an empty edge, so it stays smooth when the mod turns it; a plain
-// turned box had jagged edges (in-game screenshot, 28-09-2026). The picture is 8 x 8 units.
-writePng(path.join(OUT, 'buff_dash.png'), 32, (x, y) => {
-  const dy = Math.max(0, Math.abs(y - 16) - 6);   // distance to the dash's middle line, 12 px long
-  const d = Math.hypot(x - 16, dy);
-  return [255, 255, 255, Math.round(255 * (1 - smooth(3.5, 4.5, d)))];
-});
 
 // ---- CurseForge takes no .png files in a Dragonwilds mod zip: the pictures also go into Scripts/art.lua as
 // base64 text, and the mod writes them back into Art when the game starts.

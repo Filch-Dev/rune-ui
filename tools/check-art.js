@@ -37,7 +37,7 @@ for name, bytes in pairs(PNG) do
   if FS["ue4ss/Mods/RuneUI/Art/" .. name] ~= bytes then fails = fails + 1 print("different: " .. name) end
 end
 if LOG[#LOG] ~= "pictures written: " .. n then fails = fails + 1 print("first start: " .. LOG[#LOG]) end
-FS["ue4ss/Mods/RuneUI/Art/buff_dash.png"] = "old"
+FS["ue4ss/Mods/RuneUI/Art/runemap_north.png"] = "old"
 start()
 if LOG[#LOG] ~= "pictures written: 1" then fails = fails + 1 print("second start: " .. LOG[#LOG]) end
 print(n .. " pictures checked, " .. fails .. " failures")

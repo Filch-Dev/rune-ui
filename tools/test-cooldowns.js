@@ -1,6 +1,6 @@
 // Tests the order of the cooldown tiles (cooldowns.lua M.Order) without the game: newest at the bottom, a finished
 // spell's tile goes and the ones below move up, a spell cast again goes to the bottom.
-// Needs fengari: npm install --no-save fengari. Run: node tools/test-cooldowns.js
+// Needs npm install once. Run: node tools/test-cooldowns.js
 const { lua, lauxlib, lualib, to_luastring } = require('fengari');
 const fs = require('fs');
 const L = lauxlib.luaL_newstate(); lualib.luaL_openlibs(L);

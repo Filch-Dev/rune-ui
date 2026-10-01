@@ -1,5 +1,5 @@
 // Tests immersive.lua without the game: a fake HUD and a fake clock (a fight, a heal, a new buff, low food, F9).
-// Needs fengari: npm install --no-save fengari. Run: node tools/test-immersive.js
+// Needs npm install once. Run: node tools/test-immersive.js
 const { lua, lauxlib, lualib, to_luastring } = require('fengari');
 const fs = require('fs');
 const L = lauxlib.luaL_newstate();
@@ -29,11 +29,12 @@ bars[1].ProgressBarImage = { Brush = { ResourceObject = stMat } }
 local trim = Widget("trim")
 local ring = { Value = 0.9, Box = Widget("box"), Dia = Widget("dia") }
 local on, editing, buffs, chat = true, false, 0, 0
+local drinks, drink = {}, nil
 local ctx = { Log = function() end, On = function() return on end, Editing = function() return editing end,
   Bars = function() return bars end, Trim = function() return trim end, BuffCount = function() return buffs end,
   Rings = function() return { ring } end, TextsUnder = function(W) return { W.txt } end,
   Wait = function() return 5 end,
-  ChatCount = function() return chat end }
+  ChatCount = function() return chat end, Drinks = function() return drinks end }
 
 local function run(sec) local stop = T + sec while T < stop - 1e-9 do T = T + 0.05 M.Tick(ctx) end end
 local function F(id) return M.Factor({ Id = id }) end
@@ -86,10 +87,31 @@ check("eating: ring stays", ring.Box.op == 1)
 run(8.5)
 check("fed: ring fades", ring.Box.op == 0)
 
+drink = { Value = 1, Root = Widget("drink") } drinks.d1 = drink run(0.5)
+check("new drink: drink ring shows", drink.Root.op == 1)
+run(8.5)
+check("drink: then fades", drink.Root.op == 0)
+drink.Value = 0.3 run(0.5)
+check("drink runs low: back", drink.Root.op == 1)
+run(8.5)
+check("drink low: stays", drink.Root.op == 1)
+drink.Value = 1 run(8.5)
+check("a new drink in the same entry: shown, then fades", drink.Root.op == 0)
+drink.Value = 0.9 run(0.3) drink.Value = 1 run(0.5)
+check("the seconds jump up again: back", drink.Root.op == 1)
+-- the game's spare entry, stale at a low share, must not hold the shown one or be held by it
+local spare = { Value = 0.1, Root = Widget("spare") } drinks.d0 = spare
+drink = { Value = 1, Root = Widget("drink2") } drinks.d2 = drink run(0.5)
+check("another drink, new entry: shows", drink.Root.op == 1)
+run(8.5)
+check("another drink: fades, a spare entry low does not hold it", drink.Root.op == 0)
+
 editing = true run(0.3)
+check("F9 open: drink back", drink.Root.op == 1)
 check("F9 open: everything back", F("toolbar") == 1 and F("compass") == 1 and rowH.op == 1 and ring.Box.op == 1)
 editing = false run(3)
 on = false run(0.3)
+check("switched off: drink back", drink.Root.op == 1)
 check("switched off: everything back", F("toolbar") == 1 and F("compass") == 1 and F("menuico") == 1 and F("runemap") == 1 and rowH.op == 1 and ring.Box.op == 1)
 local calls = 0
 rowH.SetRenderOpacity = function(self, o) calls = calls + 1 self.op = o end

@@ -1,6 +1,6 @@
 // Checks without the game that the mod writes the pictures back from Scripts/art.lua byte for byte, and that a
 // second start writes only a changed picture. Runs the unpacking code of main.lua in a Lua made in JavaScript.
-// Needs fengari: npm install --no-save fengari. Run: node tools/check-art.js
+// Needs npm install once. Run: node tools/check-art.js
 const { lua, lauxlib, lualib, to_luastring } = require('fengari');
 const fs = require('fs'), path = require('path');
 const MOD = path.join(__dirname, '..', 'RuneUI');

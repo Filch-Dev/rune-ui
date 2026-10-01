@@ -1,0 +1,15 @@
+{
+  "name": "rune-ui",
+  "private": true,
+  "scripts": {
+    "check:lua": "node tools/check-lua.js",
+    "check:art": "node tools/check-art.js",
+    "check:readme": "node tools/make-readme-txt.js --check",
+    "test:lua": "node tools/run-tests.js",
+    "test": "npm run check:lua && npm run check:art && npm run check:readme && npm run test:lua"
+  },
+  "devDependencies": {
+    "fengari": "0.1.5",
+    "luaparse": "0.3.1"
+  }
+}

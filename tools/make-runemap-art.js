@@ -215,7 +215,7 @@ function creature(file, light, deep) {
 creature('creature_enemy.png', '#ff7a66', '#b8281e');
 creature('creature_neutral.png', '#a6e07a', '#3f8f2e');
 
-// ---- resources on the map (Ivan, 29-09-2026): a shape for each group, since the creatures are the diamonds. Ore
+// ---- resources on the map (playtest, 29-09-2026): a shape for each group, since the creatures are the diamonds. Ore
 // a brown square, herbs a green triangle, rune essence a blue circle, rare trees a gold triangle pointing down.
 // dist gives the distance from the middle in the shape's own measure; the outline and the body are two sizes of it.
 function resource(file, light, deep, dist, outR, bodyR) {
@@ -250,6 +250,92 @@ resource('resource_tree.png', '#f0d078', '#8a6420', triangle(-1), 16, 11.5);
       return out([...TRACK.slice(0, 3), TRACK[3] * a]);
     }, H);
   }
+}
+
+// ---- the staff's target mark (picked in game, 01-10-2026: "Diamond"): four L corners turned 45 degrees,
+// white with a dark edge; aim.lua tints it gold. 128 pixels, each pixel 4x4 samples.
+{
+  const N = 128, SS = 4, K = 0.74, c = N / 2, r = Math.SQRT1_2;
+  const corners = (x, y, grow) => {
+    const t = 6 + grow * 2, arm = 30 + grow, lo = 16 - grow, hi = N - 16 + grow;
+    if (x < lo || x > hi || y < lo || y > hi) return false;
+    const edgeX = x <= lo + t || x >= hi - t, edgeY = y <= lo + t || y >= hi - t;
+    const armX = x <= lo + arm || x >= hi - arm, armY = y <= lo + arm || y >= hi - arm;
+    return (edgeY && armX) || (edgeX && armY);
+  };
+  const turned = (x, y) => { const dx = (x - c) / K, dy = (y - c) / K; return [c + (dx + dy) * r, c + (dy - dx) * r]; };
+  writePng(path.join(OUT, 'mark_diamond.png'), N, (px, py) => {
+    let white = 0, edge = 0;
+    for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
+      const [u, v] = turned(px - 0.5 + (sx + 0.5) / SS, py - 0.5 + (sy + 0.5) / SS);
+      if (corners(u, v, 0)) white++; else if (corners(u, v, 3)) edge++;
+    }
+    const k = white + edge ? white / (white + edge) : 0, a = (white + edge) / (SS * SS);
+    return [...[255, 255, 255].map((w, i) => Math.round(w * k + [20, 14, 6][i] * (1 - k))), Math.round(255 * Math.min(1, a * (edge ? 0.95 : 1)))];
+  });
+}
+
+// ---- the F9 editor (design sketch of 01-10-2026). edit_frame: a 1 pixel line round an 8 pixel square, drawn in
+// nine pieces, so any box on the screen map gets a thin line. edit_corners: four L corners, white with a dark edge,
+// drawn in nine pieces round the selected element (the middle strips are empty, so only the corners show).
+writePng(path.join(OUT, 'edit_frame.png'), 8, (x, y) => (x < 1 || y < 1 || x > 7 || y > 7) ? [255, 255, 255, 255] : [0, 0, 0, 0]);
+{
+  const N = 64, ARM = 22, T = 3, E = 1.5;   // arm length, gold thickness, dark edge round it
+  const inL = (x, y, g) => x >= -g && y >= -g && ((x < ARM + g && y < T + g) || (x < T + g && y < ARM + g));   // the top left L, grown by g
+  writePng(path.join(OUT, 'edit_corners.png'), N, (px, py) => {
+    const x = Math.min(px, N - px), y = Math.min(py, N - py);   // the four corners are one mirrored
+    if (inL(x - E, y - E, 0)) return [255, 255, 255, 255];
+    if (inL(x - E, y - E, E)) return [20, 14, 6, 200];
+    return [0, 0, 0, 0];
+  });
+}
+
+// ---- the time of day in immersive mode (sketch option 4, playtest 01-10-2026): half a sun rising at dawn, the sun by day,
+// half a sun setting at dusk, the moon at night ("Moon can be just moon without any circle"). The sketch's shapes at
+// a sun radius of 9 units in a box of 40; the picture is 128 pixels for those 40 units, each pixel 4x4 samples.
+{
+  const N = 128, SS = 4, K = N / 40, r = 9;
+  const GOLDC = [227, 184, 97], EDGE = [26, 20, 10], MOON = [223, 230, 240];
+  const seg = (x, y, x1, y1, x2, y2) => {   // distance to a line segment
+    const dx = x2 - x1, dy = y2 - y1, t = clamp(((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy), 0, 1);
+    return Math.hypot(x - x1 - t * dx, y - y1 - t * dy);
+  };
+  // the layers of one icon, back to front: each is [inside(x, y), colour, alpha]; x, y in units from the centre
+  const sun = clipBelow => {
+    const top = y => !clipBelow || y <= 0;
+    const rays = [];
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      rays.push([(x, y) => top(y) && seg(x, y, Math.cos(a) * r * 1.35, Math.sin(a) * r * 1.35, Math.cos(a) * r * 1.8, Math.sin(a) * r * 1.8) <= 1, GOLDC, 1]);
+    }
+    return [[(x, y) => top(y) && Math.hypot(x, y) < r * 1.9, GOLDC, 0.18], ...rays,
+      [(x, y) => top(y) && Math.hypot(x, y) < r + 0.75, EDGE, 1], [(x, y) => top(y) && Math.hypot(x, y) < r - 0.75, GOLDC, 1]];
+  };
+  const half = up => {
+    const w = 0.9, s = r * 0.45, ay = r * 1.05;
+    const arrow = up ? [[-s, ay + s, 0, ay], [0, ay, s, ay + s]] : [[-s, ay, 0, ay + s], [0, ay + s, s, ay]];
+    return [...sun(true), [(x, y) => seg(x, y, -r * 2.1, 0, r * 2.1, 0) <= w, GOLDC, 1],
+      ...arrow.map(([a, b, c, d]) => [(x, y) => seg(x, y, a, b, c, d) <= w, GOLDC, 1])];
+  };
+  const R = r * 1.05;
+  const moon = [[(x, y) => Math.hypot(x, y) < R && Math.hypot(x - R * 0.55, y + R * 0.35) >= R * 0.85, MOON, 1]];
+  const draw = (file, layers) => writePng(path.join(OUT, file), N, (px, py) => {
+    let cr = 0, cg = 0, cb = 0, ca = 0;   // premultiplied, summed over the samples
+    for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
+      const x = (px - 0.5 + (sx + 0.5) / SS - N / 2) / K, y = (py - 0.5 + (sy + 0.5) / SS - N / 2) / K;
+      let r0 = 0, g0 = 0, b0 = 0, a0 = 0;
+      for (const [inside, c, a] of layers) if (inside(x, y)) {
+        r0 = c[0] * a + r0 * (1 - a); g0 = c[1] * a + g0 * (1 - a); b0 = c[2] * a + b0 * (1 - a); a0 = a + a0 * (1 - a);
+      }
+      cr += r0; cg += g0; cb += b0; ca += a0;
+    }
+    const n = SS * SS;
+    return ca ? [Math.round(cr / ca), Math.round(cg / ca), Math.round(cb / ca), Math.round(255 * ca / n)] : [0, 0, 0, 0];
+  });
+  draw('clock_day.png', sun(false));
+  draw('clock_dawn.png', half(true));
+  draw('clock_dusk.png', half(false));
+  draw('clock_night.png', moon);
 }
 
 // ---- CurseForge takes no .png files in a Dragonwilds mod zip: the pictures also go into Scripts/art.lua as

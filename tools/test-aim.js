@@ -1,6 +1,6 @@
 // Tests aim.lua without the game: fake aim widgets and a fake lock-on orb. On: gold with the game's alpha kept, gold
-// again after the game paints white, the diamond on the orb. Off: every colour and the orb picture back.
-// Needs fengari: npm install --no-save fengari. Run: node tools/test-aim.js
+// again after the game paints white, the diamond on the orb and in the target ring template. Off: every colour and the orb picture back.
+// Needs npm install once. Run: node tools/test-aim.js
 const { lua, lauxlib, lualib, to_luastring } = require('fengari');
 const fs = require('fs');
 const L = lauxlib.luaL_newstate(); lualib.luaL_openlibs(L);
@@ -38,7 +38,15 @@ local staff = Img("MagicIcon", { R = 1, G = 1, B = 1, A = 1 })
 staff.Brush.TintColor = { SpecifiedColor = { R = 1, G = 1, B = 1, A = 0.9 } }
 function staff:SetBrushTintColor(t) self.Brush.TintColor = t end
 local ads = Obj("ReticleRangedADS", { WidgetTree = { RootWidget = Panel("CanvasPanel_0", { ring, cross, bar, staff }) } })
-local icon = Img("WBP_TargetIcon_C_1", { R = 1, G = 1, B = 1, A = 1 })   -- the staff's ring round a target
+-- the staff's ring round a target: its class template's Image, a /Game object among the game's live images
+local ringTex = Obj("T_HUD_Reticle_Magic")
+function ringTex:GetFullName() return "Texture2D /Game/UI/T_HUD_Reticle_Magic.T_HUD_Reticle_Magic" end
+local icon = Img("Image", { R = 1, G = 1, B = 1, A = 1 })
+icon.Brush = { ResourceObject = ringTex, TintColor = { SpecifiedColor = { R = 1, G = 1, B = 1, A = 1 } } }
+function icon:GetFullName() return "Image /Game/UI/WBP_TargetIcon.WBP_TargetIcon_C:WidgetTree.Image" end
+local live = Img("Image", { R = 1, G = 1, B = 1, A = 1 })
+function live:GetFullName() return "Image /Engine/Transient.GameEngine.WBP_TargetIcon_C_1.WidgetTree.Image" end
+FindAllOf = function(c) assert(c == "Image") return { live, icon } end
 local reticle = Obj("WBP_HUD_ReticleWidget_C", { WidgetTree = { RootWidget = Panel("Canvas", { ads }) } })
 local origTex = Obj("T_Reticule_Asset")
 function origTex:GetFullName() return "Texture2D /Game/UI/T_Reticule_Asset.T_Reticule_Asset" end   -- a game picture
@@ -51,14 +59,14 @@ local orb = Obj("WBP_LockOnTargetOrb_C", { WidgetTree = { RootWidget = sizeBox }
 local diamondTex = Obj("diamond")
 StaticFindObject = function(p)
   if p == "/Game/UI/T_Reticule_Asset.T_Reticule_Asset" then return origTex end
+  if p == "/Game/UI/T_HUD_Reticle_Magic.T_HUD_Reticle_Magic" then return ringTex end
   return { ImportFileAsTexture2D = function() return diamondTex end }
 end
 FName = function(s) return s end
 local on = true
 local logs = {}
 local ctx = { Log = function(m) logs[#logs + 1] = m print(m) end, On = function() return on end,
-  Reticle = function() return reticle end, Orb = function() return orb end,
-  TargetIcons = function() return { icon } end }
+  Reticle = function() return reticle end, Orb = function() return orb end }
 local Aim = load(SRC)()
 Aim.Tick(ctx)
 assert(math.abs(cross.ColorAndOpacity.R - 0.7678) < 0.01, "crosshair not gold " .. cross.ColorAndOpacity.R)
@@ -68,7 +76,8 @@ assert(mid.Last and mid.Last.A == 0.7, "ring material not gold")
 assert(ring.ColorAndOpacity.R < 1, "ring tint not gold")
 assert(staff.Brush.TintColor.SpecifiedColor.R < 1 and staff.Brush.TintColor.SpecifiedColor.A == 0.9, "staff ring not gold")
 assert(staff.ColorAndOpacity.R == 1, "staff ring gold twice")
-assert(icon.ColorAndOpacity.R < 1, "target ring not gold")
+assert(icon.ColorAndOpacity.R < 1 and icon.Brush.ResourceObject == diamondTex and icon.Brush.TintColor.SpecifiedColor.R == 1, "target ring template not ours")
+assert(live.ColorAndOpacity.R == 1 and live.Brush.ResourceObject == nil, "a live ring touched")
 assert(orbImg.Brush.ResourceObject == diamondTex and orbImg.Scale == 0.45 and orbImg.Brush.ImageSize.X == 64, "no diamond")
 cross.ColorAndOpacity = { R = 1, G = 1, B = 1, A = 0.5 }   -- the game paints it white again
 Aim.Tick(ctx)
@@ -80,11 +89,12 @@ assert(bar.FillColorAndOpacity.R == 1, "bar not restored")
 assert(mid.Last.R == 1 and mid.Last.A == 0.7, "ring not restored")
 assert(ring.ColorAndOpacity.R == 1, "ring tint not restored")
 assert(staff.Brush.TintColor.SpecifiedColor.R == 1 and staff.Brush.TintColor.SpecifiedColor.A == 0.9, "staff ring not restored")
-assert(icon.ColorAndOpacity.R == 1, "target ring not restored")
+assert(icon.ColorAndOpacity.R == 1 and icon.Brush.ResourceObject == ringTex, "target ring template not restored")
 assert(orbImg.Brush.ResourceObject == origTex and orbImg.Scale == 1 and orbImg.Brush.ImageSize.X == 64, "orb not restored")
 on = true
 Aim.Tick(ctx)
 assert(cross.ColorAndOpacity.R < 1 and orbImg.Brush.ResourceObject == diamondTex, "not gold after on again")
+assert(icon.Brush.ResourceObject == diamondTex, "ring template not ours after on again")
 -- a player restart: the handles go, the widgets stay gold; off must still bring the white back
 Aim.Forget()
 Aim.Tick(ctx)
@@ -94,6 +104,7 @@ on = false
 Aim.Tick(ctx)
 assert(cross.ColorAndOpacity.R == 1 and bar.FillColorAndOpacity.R == 1 and mid.Last.R == 1, "white not back after a restart")
 assert(orbImg.Brush.ResourceObject == origTex and orbImg.Scale == 1, "orb not back after a restart")
+assert(icon.Brush.ResourceObject == ringTex and icon.ColorAndOpacity.R == 1, "ring template not back after a restart")
 print("ALL OK")
 `;
 const full = harness.replace('load(SRC)', 'load(SRCTEXT)');

@@ -1,6 +1,6 @@
 // Checks the mod's Lua files without the game: the syntax, and every global name the code reads must be a
 // Lua or UE4SS global. A call to a function that no longer exists shows as an unknown global.
-// Needs luaparse: npm install --no-save luaparse. Run: node tools/check-lua.js (all of RuneUI/Scripts), or name files.
+// Needs npm install once. Run: node tools/check-lua.js (all of RuneUI/Scripts), or name files.
 const lp = require('luaparse'), fs = require('fs'), path = require('path');
 const known = new Set(('print io os string table math collectgarbage pairs ipairs pcall require dofile tostring tonumber type next error select setmetatable getmetatable rawget rawset unpack package _G ' +
   'FName FText FindAllOf FindFirstOf StaticFindObject StaticConstructObject LoadAsset RegisterHook RegisterKeyBind ExecuteWithDelay ExecuteInGameThread NotifyOnNewObject LoopAsync UEHelpers LoopInGameThreadWithDelay ExecuteInGameThreadWithDelay IsInGameThread').split(' '));

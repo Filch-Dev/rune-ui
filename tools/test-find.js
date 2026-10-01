@@ -1,7 +1,7 @@
 // Tests main.lua's widget search without the game: SearchWidgets sorts fake widgets by class, FindClass keeps only
 // live ones with a matching path and gives their full names, and asks a widget for its name once per search (the
 // parts call FindClass up to 5 times a second, 30-09-2026). Runs that part of main.lua in a Lua made in JavaScript.
-// Needs fengari: npm install --no-save fengari. Run: node tools/test-find.js
+// Needs npm install once. Run: node tools/test-find.js
 const { lua, lauxlib, lualib, to_luastring } = require('fengari');
 const fs = require('fs'), path = require('path');
 const main = fs.readFileSync(path.join(__dirname, '..', 'RuneUI', 'Scripts', 'main.lua'), 'utf8');

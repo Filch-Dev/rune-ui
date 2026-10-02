@@ -7,7 +7,9 @@ const ROOT = path.join(__dirname, '..');
 const version = fs.readFileSync(path.join(ROOT, 'RuneUI', 'Scripts', 'main.lua'), 'utf8').match(/local VERSION = "(.+?)"/)[1];
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'runeui-'));
 const mod = path.join(stage, 'RuneUI');
-fs.cpSync(path.join(ROOT, 'RuneUI'), mod, { recursive: true, filter: f => !f.endsWith('.png') });
+// Mod Menu's copy of the settings, which the mod writes in the game: a developer's values, if it ever lands here
+const COPY = path.join(ROOT, 'RuneUI', 'config.txt');
+fs.cpSync(path.join(ROOT, 'RuneUI'), mod, { recursive: true, filter: f => !f.endsWith('.png') && f !== COPY });
 fs.copyFileSync(path.join(ROOT, 'LICENSE'), path.join(mod, 'LICENSE.txt'));
 const files = fs.readdirSync(mod, { recursive: true }).filter(f => fs.statSync(path.join(mod, f)).isFile());
 const bad = files.filter(f => !ALLOWED.includes(path.extname(f).toLowerCase()));

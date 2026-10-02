@@ -1,11 +1,12 @@
 // Tests main.lua's widget search without the game: SearchWidgets sorts fake widgets by class, FindClass keeps only
 // live ones with a matching path and gives their full names, and asks a widget for its name once per search (the
-// parts call FindClass up to 5 times a second, 30-09-2026). Runs that part of main.lua in a Lua made in JavaScript.
+// parts call FindClass up to 5 times a second, 30-09-2026). Since 1.5 also the game's reports of new widgets
+// (NewWidget, Compact) and the scan that uses them (FindAll). Runs that part of main.lua in a Lua made in JavaScript.
 // Needs npm install once. Run: node tools/test-find.js
 const { lua, lauxlib, lualib, to_luastring } = require('fengari');
 const fs = require('fs'), path = require('path');
 const main = fs.readFileSync(path.join(__dirname, '..', 'RuneUI', 'Scripts', 'main.lua'), 'utf8');
-const START = 'local function ClassName(obj)', END = "-- The screen's size in units";
+const START = 'local function ClassName(obj)', END = '---------------------------------------------------------------- applying the layout';
 const code = main.slice(main.indexOf(START), main.indexOf(END));
 const L = lauxlib.luaL_newstate(); lualib.luaL_openlibs(L);
 const test = `
@@ -17,6 +18,7 @@ local function Widget(cls, full, parent)
   function W:IsValid() return self.valid end
   function W:GetFullName() names = names + 1 return full end
   function W:GetParent() return self.parent end
+  function W:GetAddress() return self.addr end
   function W:GetClass() return { GetAddress = function() return cls end, GetFName = function() return { ToString = function() return cls end } end } end
   return W
 end
@@ -59,6 +61,71 @@ AddInstance(E, chat, "given")
 check("an instance with its name given: no read", E.Keys[1] == "given" and names == 0)
 AddInstance(E, chat)
 check("an instance without: one read", E.Keys[2] == "Chat /Engine/Transient.Root.WBP_ClosedChat_C_7" and names == 1)
+
+-- the game reports new widgets (Reports): no search between two worlds
+check("a timed search asks for no class", next(Reports.Wanted) == nil and Reports.Walk == "start")
+Reports.On = true
+SearchWidgets() Reports.Walk, Reports.Dropped = false, {}   -- as FindAll does after a search
+list = FindClass("Chat")
+check("a class asked for the first time: the search has it, no new search", #list == 1 and Reports.Wanted.Chat and Reports.Walk == false)
+local chat2 = Widget("Chat", "Chat /Engine/Transient.Root.WBP_ClosedChat_C_8")
+check("a report returns nothing", NewWidget(chat2) == nil)
+check("a wanted widget is kept, and the parts are matched again", #Found.Chat == 2 and Reports.Kept == 1 and Reports.Retry == 3)
+list = FindClass("Chat")
+check("the cached answer waits for the next scan", #list == 1)
+FindCache = {}   -- as FindAll does when it matches the parts again
+list = FindClass("Chat")
+check("then the new widget is in the answer", #list == 2 and list[2] == chat2)
+NewWidget(chat2)
+FindCache = {}
+check("a widget reported twice is there once", #FindClass("Chat") == 2 and #Found.Chat == 2)
+chat2.valid = false
+FindCache = {}
+check("a widget gone leaves the list", #FindClass("Chat") == 1 and #Found.Chat == 1)
+local moved = Widget("Panel", "Panel /Engine/Transient.Root.Box_9")
+Found.Chat[#Found.Chat + 1] = moved   -- a freed slot that now holds a widget of another class
+FindCache = {}
+check("a slot with another class leaves the list", #FindClass("Chat") == 1 and #Found.Chat == 1)
+local seen = Reports.Seen
+NewWidget(Widget("Tooltip", "Tooltip /Engine/Transient.Root.Tip_1"))
+check("a class nobody asked for is counted, not kept", Reports.Seen == seen + 1 and Found.Tooltip == nil and Reports.Dropped.Tooltip)
+FindClass("Tooltip")
+check("asked for later: one new search is owed", Reports.Walk == "new class")
+local broken = { GetClass = function() error("gone") end }
+check("a widget that cannot be read stops nothing", pcall(NewWidget, broken) and Reports.Seen == seen + 2)
+
+-- the scan (FindAll): one search, then the reports; main.lua's other names here are plain globals
+local walks = 0
+FindAllOf = function() walks = walks + 1 return all end
+Log, SettleUntil = function() end, 0
+local chatE = { Id = "chat", Classes = { "Chat" }, Instances = {}, Keys = {} }
+Elements = { chatE }
+Reports.Walk, Reports.Retry, Reports.Wanted, Reports.Dropped = "start", 0, {}, {}
+FindAll(false, false)
+check("the first scan searches and finds the part", walks == 1 and #chatE.Instances == 1 and Reports.Walk == false)
+FindAll(true, false)
+check("the next scan does not search, in the editor too", walks == 1 and #chatE.Instances == 1)
+local chat3 = Widget("Chat", "Chat /Engine/Transient.Root.WBP_ClosedChat_C_9")
+NewWidget(chat3)
+FindAll(false, false)
+check("a reported widget is a part's on the next scan, with no search", walks == 1 and #chatE.Instances == 2 and chatE.Keys[2] == "Chat /Engine/Transient.Root.WBP_ClosedChat_C_9")
+FindAll(false, false) FindAll(false, false)
+check("the scans after it match again, then stop", Reports.Retry == 0 and #chatE.Instances == 2)
+chat3.valid = false
+FindAll(false, false)
+check("a part's widget gone: matched again, with no search", walks == 1 and #chatE.Instances == 1)
+NewWidget(Widget("Tooltip", "Tooltip /Engine/Transient.Root.Tip_2"))
+FindClass("Tooltip")
+FindAll(false, false)
+check("a class asked for late, with a widget not kept: one search", walks == 2 and Reports.Walk == false and next(Reports.Dropped) == nil)
+Reports.On = false
+Settle.Done, NextSearch = true, 0   -- the world has settled and the 10 s are over
+FindAll(false, false)
+check("without the reports the 10 s timer still searches", walks == 3 and Searches.Why.timer == 1)
+FindAll(false, false)
+check("and not before the next 10 s", walks == 3)
+FindAll(true, false)
+check("but on every scan in the editor", walks == 4 and Searches.Why.editor == 1)
 print(fails == 0 and "ALL PASS" or (fails .. " FAILED"))
 return fails
 `;

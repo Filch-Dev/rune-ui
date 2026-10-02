@@ -3,7 +3,7 @@
 // Needs npm install once. Run: node tools/check-lua.js (all of RuneUI/Scripts), or name files.
 const lp = require('luaparse'), fs = require('fs'), path = require('path');
 const known = new Set(('print io os string table math collectgarbage pairs ipairs pcall require dofile tostring tonumber type next error select setmetatable getmetatable rawget rawset unpack package _G ' +
-  'FName FText FindAllOf FindFirstOf StaticFindObject StaticConstructObject LoadAsset RegisterHook RegisterKeyBind ExecuteWithDelay ExecuteInGameThread NotifyOnNewObject LoopAsync UEHelpers LoopInGameThreadWithDelay ExecuteInGameThreadWithDelay IsInGameThread').split(' '));
+  'FName FText FindAllOf FindFirstOf StaticFindObject StaticConstructObject LoadAsset RegisterHook RegisterKeyBind ExecuteWithDelay ExecuteInGameThread NotifyOnNewObject LoopAsync UEHelpers LoopInGameThreadWithDelay ExecuteInGameThreadWithDelay IsInGameThread ModRef').split(' '));
 let files = process.argv.slice(2);
 if (!files.length) {
   const dir = path.join(__dirname, '..', 'RuneUI', 'Scripts');

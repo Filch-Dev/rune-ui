@@ -54,6 +54,7 @@ local orbImg = Img("Orb", { R = 1, G = 1, B = 1, A = 1 }); orbImg.Brush.Resource
 function orbImg:SetBrushFromTexture(t) self.Brush = { ResourceObject = t, ImageSize = { X = 1, Y = 1 } } end
 function orbImg:SetBrush(b) self.Brush = b end
 function orbImg:SetRenderScale(s) self.Scale = s.X end
+function orbImg:SetRenderTranslation(t) self.Move = t end
 local sizeBox = Obj("SizeBox_1"); function sizeBox:GetContent() return orbImg end
 local orb = Obj("WBP_LockOnTargetOrb_C", { WidgetTree = { RootWidget = sizeBox } })
 local diamondTex = Obj("diamond")
@@ -78,7 +79,7 @@ assert(staff.Brush.TintColor.SpecifiedColor.R < 1 and staff.Brush.TintColor.Spec
 assert(staff.ColorAndOpacity.R == 1, "staff ring gold twice")
 assert(icon.ColorAndOpacity.R < 1 and icon.Brush.ResourceObject == diamondTex and icon.Brush.TintColor.SpecifiedColor.R == 1, "target ring template not ours")
 assert(live.ColorAndOpacity.R == 1 and live.Brush.ResourceObject == nil, "a live ring touched")
-assert(orbImg.Brush.ResourceObject == diamondTex and orbImg.Scale == 0.45 and orbImg.Brush.ImageSize.X == 64, "no diamond")
+assert(orbImg.Brush.ResourceObject == diamondTex and orbImg.Scale == 0.45 and orbImg.Brush.ImageSize.X == 64 and orbImg.Move.Y < 0, "no diamond")
 cross.ColorAndOpacity = { R = 1, G = 1, B = 1, A = 0.5 }   -- the game paints it white again
 Aim.Tick(ctx)
 assert(cross.ColorAndOpacity.R < 1 and cross.ColorAndOpacity.A == 0.5, "not gold again")
@@ -90,7 +91,7 @@ assert(mid.Last.R == 1 and mid.Last.A == 0.7, "ring not restored")
 assert(ring.ColorAndOpacity.R == 1, "ring tint not restored")
 assert(staff.Brush.TintColor.SpecifiedColor.R == 1 and staff.Brush.TintColor.SpecifiedColor.A == 0.9, "staff ring not restored")
 assert(icon.ColorAndOpacity.R == 1 and icon.Brush.ResourceObject == ringTex, "target ring template not restored")
-assert(orbImg.Brush.ResourceObject == origTex and orbImg.Scale == 1 and orbImg.Brush.ImageSize.X == 64, "orb not restored")
+assert(orbImg.Brush.ResourceObject == origTex and orbImg.Scale == 1 and orbImg.Brush.ImageSize.X == 64 and orbImg.Move.Y == 0, "orb not restored")
 on = true
 Aim.Tick(ctx)
 assert(cross.ColorAndOpacity.R < 1 and orbImg.Brush.ResourceObject == diamondTex, "not gold after on again")

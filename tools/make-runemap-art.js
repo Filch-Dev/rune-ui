@@ -1,5 +1,5 @@
 // Draws the mod's pictures as PNG files: RuneMap's day band (a smooth ring of colour, night at the top), its
-// needle and diamonds, the creature diamonds, the survival rings and the bar tracks. The game shows them as
+// time arrow, north arrow and diamonds, the creature diamonds, the survival rings and the bar tracks. The game shows them as
 // they are, so they are smooth where 144 small pieces were jagged (in-game test, 27-09-2026). Run: node tools/make-runemap-art.js
 const fs = require('fs');
 const path = require('path');
@@ -163,42 +163,52 @@ writePng(path.join(OUT, 'keycap.png'), 32, (x, y) => {
   return [...col.map(v => Math.round(v)), Math.round(255 * shape * (0.82 + 0.18 * edge))];
 });
 
-// ---- the clock hand on the ring (design sketch): a gold needle that points at the map's centre,
-// with a diamond cap on its outer end. 32 x 96 px for a 10 x 30 unit marker; it points down, the mod turns it.
+// ---- shapes from corner points: is a point inside, and the share of a pixel that is (5 x 5 samples)
+const inside = (poly, x, y) => {
+  let inn = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inn = !inn;
+  }
+  return inn;
+};
+const cover = (test, x, y) => {   // x, y: the pixel's middle
+  let n = 0;
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) if (test(x - 0.5 + (i + 0.5) / 5, y - 0.5 + (j + 0.5) / 5)) n++;
+  return n / 25;
+};
+const GOLD_LIGHT = hex('#f7dd97'), GOLD_MID = hex('#e3b85a'), GOLD_DEEP = hex('#a8823f'), OUTLINE = hex('#2a1c12');
+
+// ---- the clock hand (1.5, sketched live in the game on 02-10-2026: the needle with its cap stood out past the
+// ring, "the clock icon annoys me"): a gold arrow head between the two gold rings that points out, the left face
+// in the light. 64 x 96 px for a 14.3 x 21.5 unit marker; it points up, the mod turns it.
 {
-  const W = 32, H = 96, cx = W / 2;
-  writePng(path.join(OUT, 'runemap_needle.png'), W, (px, py) => {
-    // the needle: from full width under the cap to a point at the bottom
-    const t = clamp((py - 22) / (H - 24), 0, 1);
-    const half = 9 * (1 - t);
-    const inNeedle = py >= 20 && py <= H - 1 ? (1 - smooth(half - 0.8, half + 0.8, Math.abs(px - cx))) : 0;
-    const outline = py >= 18 ? (1 - smooth(half + 1.2, half + 2.8, Math.abs(px - cx))) * (1 - smooth(H - 1, H, py)) : 0;
-    // the cap: a diamond round (cx, 13)
-    const d = Math.abs(px - cx) + Math.abs(py - 13);
-    const cap = 1 - smooth(10.2, 11.8, d), capOut = 1 - smooth(12.6, 14.2, d);
-    const gold = mix(hex('#f6d98c'), hex('#a8823f'), clamp((px - cx + 9) / 18, 0, 1));   // light from the left
-    let col = hex('#2a1c12'), a = Math.max(outline, capOut);
-    const body = Math.max(inNeedle, cap);
-    if (body > 0) col = mix(col, gold, body);
+  const outer = [[32, 5.6], [61, 90.4], [32, 72.5], [3, 90.4]], inner = [[32, 19], [52.9, 82.6], [32, 65.9], [11.1, 82.6]];
+  writePng(path.join(OUT, 'runemap_needle.png'), 64, (x, y) => {
+    const a = cover((sx, sy) => inside(outer, sx, sy), x, y);
+    if (a <= 0) return [0, 0, 0, 0];
+    const t = clamp((y - 19) / 64, 0, 1);
+    const face = x < 32 ? mix(GOLD_LIGHT, GOLD_MID, t) : mix(GOLD_MID, GOLD_DEEP, t);
+    const col = mix(OUTLINE, face, cover((sx, sy) => inside(inner, sx, sy), x, y));
     return [...col.map(Math.round), Math.round(255 * a)];
-  }, H);
+  }, 96);
 }
 
-// ---- the north mark on the inner gold ring (design sketch 28-09-2026, shape A): a dark disc with a gold rim
-// and a cream N. 64 px for a 17 unit mark; the N is drawn from three strokes, so no font is needed.
+// ---- the north mark (1.5, sketched live in the game on 02-10-2026: "N mark should be like engraved in arrow
+// itself", "a bit bigger"): a gold arrow head with a dark outline and a bold dark N cut into it. 64 px for a
+// 26 unit mark; it points up, the mod turns it with its place on the ring. The N is three strokes, so no font.
 writePng(path.join(OUT, 'runemap_north.png'), S, (x, y) => {
-  const r = Math.hypot(x - h, y - h);
-  const seg = (ax, ay, bx, by) => {   // distance to a stroke from a to b
-    const vx = bx - ax, vy = by - ay, t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy), 0, 1);
-    return Math.hypot(x - ax - t * vx, y - ay - t * vy);
+  const outer = [[32, 2], [58, 60], [6, 60]], inner = [[32, 8.5], [53, 56.5], [11, 56.5]];
+  const a = cover((sx, sy) => inside(outer, sx, sy), x, y);
+  if (a <= 0) return [0, 0, 0, 0];
+  const seg = (px, py, ax, ay, bx, by) => {   // distance to a stroke from a to b
+    const vx = bx - ax, vy = by - ay, t = clamp(((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy), 0, 1);
+    return Math.hypot(px - ax - t * vx, py - ay - t * vy);
   };
-  const n = Math.min(seg(22, 19, 22, 45), seg(42, 19, 42, 45), seg(22, 19, 42, 45));
-  const gold = mix(hex('#f6d98c'), hex('#a8823f'), clamp((y - 2) / 60, 0, 1));   // light from the top
-  let p = [...hex('#2a1c12'), 1 - smooth(30.2, 31.4, r)];
-  p = over(p, [...gold, 1 - smooth(28.6, 29.8, r)]);
-  p = over(p, [...hex('#150f09'), 1 - smooth(24.6, 25.8, r)]);
-  p = over(p, [...hex('#f3e6c4'), 1 - smooth(2.6, 3.8, n)]);
-  return out(p);
+  const n = (px, py) => Math.min(seg(px, py, 24, 34, 24, 52), seg(px, py, 40, 34, 40, 52), seg(px, py, 24, 34, 40, 52));
+  let col = mix(OUTLINE, mix(GOLD_LIGHT, GOLD_MID, clamp((y - 8) / 48, 0, 1)), cover((sx, sy) => inside(inner, sx, sy), x, y));
+  col = mix(col, hex('#1a0f08'), cover((sx, sy) => n(sx, sy) < 2.7, x, y));
+  return [...col.map(Math.round), Math.round(255 * a)];
 });
 
 // ---- creatures on the map: a small diamond, red for enemies and green for neutral animals, dark outline
@@ -216,7 +226,8 @@ creature('creature_enemy.png', '#ff7a66', '#b8281e');
 creature('creature_neutral.png', '#a6e07a', '#3f8f2e');
 
 // ---- resources on the map (playtest, 29-09-2026): a shape for each group, since the creatures are the diamonds. Ore
-// a brown square, herbs a green triangle, rune essence a blue circle, rare trees a gold triangle pointing down.
+// a brown square, herbs a green triangle, rune essence a blue circle, rare trees a violet triangle pointing down
+// (playtest, 02-10-2026: gold was hard to tell from the brown ore).
 // dist gives the distance from the middle in the shape's own measure; the outline and the body are two sizes of it.
 function resource(file, light, deep, dist, outR, bodyR) {
   writePng(path.join(OUT, file), S, (x, y) => {
@@ -233,7 +244,7 @@ const triangle = up => (dx, dy) => { const v = up * (dy - 6 * up); return Math.m
 resource('resource_ore.png', '#c99a66', '#6b4423', (dx, dy) => Math.max(Math.abs(dx), Math.abs(dy)), 22, 17);
 resource('resource_herb.png', '#9be07a', '#2f7d2a', triangle(1), 16, 11.5);
 resource('resource_essence.png', '#9ccfff', '#2a5fb8', (dx, dy) => Math.hypot(dx, dy), 25, 20);
-resource('resource_tree.png', '#f0d078', '#8a6420', triangle(-1), 16, 11.5);
+resource('resource_tree.png', '#e2a6ff', '#7a2fb8', triangle(-1), 16, 11.5);
 
 // ---- the bars' track (design sketch, without its ornaments: in-game review 27-09-2026). The mod draws this
 // picture in nine pieces over each bar's frame, one pixel to one unit: the outer pieces keep their size and
